@@ -1,86 +1,47 @@
-const nodemailer = require("nodemailer");
 const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
+const {
+  accessToken,
+  refreshToken,
+  verifyToken,
+} = require("../utils/tokengenerate");
+const { hashpassword, comparepassword } = require("../utils/bcrypt");
+const generateotp = require("../utils/otpgenerate");
+const mailer = require("../utils/mailer");
+const deletefile = require("../utils/fs");
+
 const User = require("../models/usermodel");
-const fs = require("fs");
 
 const createuser = async (req, res) => {
   try {
     const { username, email, password, role } = req.body;
-
     let user = await User.findOne({ email });
 
     if (user) {
-      if (req.file) fs.unlinkSync(req.file.path);
+      deletefile(req.file?.path);
       return res.status(400).json({
         message: "user already exsits",
       });
     }
-    if (!username) {
-      if (req.file) fs.unlinkSync(req.file.path);
-      return res.status(407).json({
-        message: "username required",
-      });
-    }
-    if (!email) {
-      if (req.file) fs.unlinkSync(req.file.path);
-      return res.status(407).json({
-        message: "email required",
-      });
-    }
-    if (!password) {
-      if (req.file) fs.unlinkSync(req.file.path);
-      return res.status(407).json({
-        message: "password required",
-      });
-    }
-    if (!role) {
-      if (req.file) fs.unlinkSync(req.file.path);
-      return res.status(407).json({
-        message: "role required",
-      });
-    }
-    if (!req.file)
-      return res.status(407).json({
-        message: "avatar required",
-      });
-
-    const salt = await bcrypt.genSalt(12);
-    const hashpassword = await bcrypt.hash(password, salt);
-
-    const generateotp = Math.floor(100000 + Math.random() * 900000);
-
-    // const hashotp = await bcrypt.hash(generateotp.toString(), salt);
-
+    const hashed = await hashpassword(password, 12);
+    const otp = generateotp();
     user = await User.create({
       username,
       email,
-      password: hashpassword,
+      password: hashed,
       avatar: req.file.path,
       role,
-      otp: generateotp,
+      otp,
       isVerify: false,
       otpExpiry: Date.now() + 5 * 60 * 1000,
     });
-
-    const transport = await nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.NodeMail_ID,
-        pass: process.env.NodeMailPassword,
-      },
-    });
-    await transport.sendMail({
-      from: process.env.NodeMail_ID,
-      to: email,
-      subject: "Welcome to ammar commpany",
-      text: `your otp code is ${generateotp} otp expire in 5 mint plz verify`,
-    });
+    await mailer(email, otp);
 
     res.status(200).json({
-      message: `otp is send to your email plzz verify`,
+      message: `otp is send to your email expire in 5 mint plz verify`,
+      code: 200,
     });
   } catch (err) {
+    deletefile(req.file?.path);
     res.status(500).json({
       message: "internal serverr error",
       code: 500,
@@ -110,7 +71,7 @@ const verifyotp = async (req, res) => {
 
     if (!otp || user.otpExpiry < Date.now())
       return res.status(400).json({
-        messge: "invalid otp or expird otp",
+        message: "invalid otp or expired otp",
         code: 400,
       });
 
@@ -144,25 +105,19 @@ const resendotp = async (req, res) => {
   try {
     const { email } = req.body;
     let user = await User.findOne({ email });
-    const generateotp = Math.floor(100000 + Math.random() * 900000);
 
-    const transport = await nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.NodeMail_ID,
-        pass: process.env.NodeMailPassword,
-      },
-    });
-    await transport.sendMail({
-      from: process.env.NodeMail_ID,
-      to: user.email,
-      subject: "Welcome to ammar commpany",
-      text: `your otp code is ${generateotp} otp expire in 5 mint plz verify`,
-    });
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
 
-    user.otp = generateotp;
+    const otp = generateotp();
+
+    user.otp = otp;
     user.otpExpiry = Date.now() + 5 * 60 * 1000;
     await user.save();
+    await mailer(email, otp);
     res.status(200).json({
       message: `otp resend to your email plzz verify`,
     });
@@ -186,17 +141,15 @@ const changepassword = async (req, res) => {
         message: "invalid user",
         code: "401",
       });
-
-    const comparepassword = await bcrypt.compare(oldpassword, user.password);
-    if (!comparepassword)
+    const isMatch = await comparepassword(oldpassword, user.password);
+    if (!isMatch)
       return res.status(401).json({
         message: "old password is wrong",
         code: 401,
       });
 
-    const gensalt = await bcrypt.genSalt(12);
-    const hashpassword = await bcrypt.hash(newpassword, gensalt);
-    user.password = hashpassword;
+    const hash = await hashpassword(newpassword, 12);
+    user.password = hash;
     await user.save();
 
     res.status(200).json({
@@ -222,8 +175,8 @@ const login = async (req, res) => {
         message: "invalid email",
         code: 401,
       });
-    const comparepassword = await bcrypt.compare(password, user.password);
-    if (!comparepassword)
+    const ismatch = await comparepassword(password, user.password);
+    if (!ismatch)
       return res.status(401).json({
         message: "invalid password",
         code: 401,
@@ -234,13 +187,8 @@ const login = async (req, res) => {
         message: "plz verify your email first",
         code: 403,
       });
-    const tokenkey = process.env.SECRET_KEY;
-    const payload = {
-      id: user._id,
-      email: user.email,
-    };
-    const accesstoken = await jwt.sign(payload, tokenkey, { expiresIn: "1d" });
 
+    const accesstoken = await accessToken(user);
     const [username, domain] = email.split("@");
     const firstPart = username.slice(0, 3); // first 3 letters
     const stars = "*".repeat(Math.max(username.length - 3, 0)); // rest as stars
@@ -250,7 +198,7 @@ const login = async (req, res) => {
       message: "login successfully",
       code: 200,
       user: maskedEmail,
-      accesstoken: accesstoken,
+      accesstoken,
     });
   } catch (error) {
     res.status(500).json({
@@ -262,27 +210,26 @@ const login = async (req, res) => {
 
 const refreshtoken = async (req, res) => {
   try {
-    const { refreshtoken } = req.body;
+    let { refreshtoken } = req.body;
 
     if (!refreshtoken)
       return res.status(401).json({
         message: "unauthorized",
         code: 401,
       });
-    const verifytoken = await jwt.verify(refreshtoken, process.env.SECRET_KEY);
 
-    const payload = {
-      id: verifytoken.id,
-      email: verifytoken.email,
-    };
-    const newtoken = await jwt.sign(payload, process.env.SECRET_KEY, {
-      expiresIn: "7d",
+    const decode = await verifyToken(refreshtoken);
+
+    const newRefreshToken = await refreshToken({
+      id: decode.id,
+      email: decode.email,
     });
+  
 
     res.status(200).json({
       message: "token refresh succesfully",
       code: 200,
-      data: newtoken,
+      newRefreshToken,
     });
   } catch (error) {
     res.status(500).json({

@@ -8,6 +8,7 @@ const signupSchema = joi.object({
   password: joi.string().min(6).required(),
 
   role: joi.string().valid("admin", "user").required(),
+
 });
 
 const loginSchema = joi.object({
@@ -22,15 +23,21 @@ const otpSchema = joi.object({
   otp: joi.string().min(6).required(),
 });
 
+const resotp = joi.object({
+  email:joi.string().email().required()
+})
+
 const resetPasswordSchema = joi.object({
   email: joi.string().email().required(),
 
-  password: joi.string().min(6).required(),
+  oldpassword: joi.string().min(6).required(),
+  newpassword: joi.string().min(6).required()
 });
 
 module.exports = {
   signupSchema,
   loginSchema,
   otpSchema,
-  resetPasswordSchema,
+  resotp,
+  resetPasswordSchema
 };

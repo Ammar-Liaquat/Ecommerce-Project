@@ -1,9 +1,15 @@
 const validate = (schema) => (req, res, next) => {
-  const {error} = schema.validate(req.body);
+
+
+  const data = {
+    ...req.body,
+    avatar:req.file
+  }
+  const { error } = schema.validate(req.body);
 
   if (error) {
     return res.status(400).json({
-      message:error.details[0].message
+      message: error.details[0].message,
     });
   }
   next();
