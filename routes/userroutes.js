@@ -2,7 +2,7 @@ const express = require("express");
 const routes = express.Router();
 const validate = require("../middelwares/validate")
 
-const {signupSchema, loginSchema, otpSchema, resetPasswordSchema, resotp, } = require("../validators/userValidator")
+const {signupSchema, loginSchema, otpSchema, resetPasswordSchema, resotp, refreshtokens, } = require("../validators/userValidator")
 
 const upload = require("../middelwares/multer");
 const {
@@ -23,7 +23,7 @@ routes.post("/otp",validate(otpSchema), verifyotp);
 routes.post("/resendotp",validate(resotp), resendotp);
 
 routes.post("/resetpassword",validate(resetPasswordSchema), changepassword);
-routes.post("/retoken", refreshtoken);
+routes.post("/retoken",validate(refreshtokens), refreshtoken);
 
 
 module.exports = routes;

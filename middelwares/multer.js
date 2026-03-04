@@ -8,5 +8,17 @@ const storage = multer.diskStorage({
     cb(null, Date.now() + "-" + file.originalname);
   },
 });
-const upload = multer({ storage });
+
+const fileFilter = (req,file,cb) =>{
+  if(file.mimetype.startsWith("image/")){
+    cb(null,true)
+  } else {
+    cb(new Error ("only image file are allowed"))
+  }
+}
+const upload = multer({
+   storage: storage,
+   fileFilter: fileFilter,
+   limits: {fileSize: 2 * 1024 * 1024} // max 2MB
+  });
 module.exports = upload;

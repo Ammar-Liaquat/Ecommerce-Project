@@ -1,6 +1,7 @@
 const dotenv = require("dotenv")
 const helmet = require("helmet")
 const morgan = require("morgan")
+const cors = require("cors")
 dotenv.config({quiet:true})
 const connectdb = require("./config/db")
 connectdb()
@@ -9,6 +10,10 @@ const express = require("express")
 const app = express()
 app.use(express.json())
 app.use(helmet())
+app.use(cors({
+    origin:"http://localhost:3000",
+    credentials:true
+}))
 app.use(morgan("dev"))
 app.use("/api",routes)
 

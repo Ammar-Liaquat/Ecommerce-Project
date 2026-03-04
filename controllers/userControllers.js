@@ -28,7 +28,7 @@ const createuser = async (req, res) => {
       username,
       email,
       password: hashed,
-      avatar: req.file.path,
+      avatar: req.file? req.file.path : null,
       role,
       otp,
       isVerify: false,
@@ -210,15 +210,15 @@ const login = async (req, res) => {
 
 const refreshtoken = async (req, res) => {
   try {
-    let { refreshtoken } = req.body;
+    let { refreshtokens } = req.body;
 
-    if (!refreshtoken)
+    if (!refreshtokens)
       return res.status(401).json({
         message: "unauthorized",
         code: 401,
       });
 
-    const decode = await verifyToken(refreshtoken);
+    const decode = await verifyToken(refreshtokens);
 
     const newRefreshToken = await refreshToken({
       id: decode.id,

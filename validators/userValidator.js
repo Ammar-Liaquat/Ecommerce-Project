@@ -34,10 +34,15 @@ const resetPasswordSchema = joi.object({
   newpassword: joi.string().min(6).required()
 });
 
+const refreshtokens = joi.object({
+  refreshtokens: joi.string().required()
+})
+
 module.exports = {
   signupSchema,
   loginSchema,
   otpSchema,
   resotp,
-  resetPasswordSchema
+  resetPasswordSchema,
+  refreshtokens
 };
